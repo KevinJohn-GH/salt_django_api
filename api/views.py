@@ -1,3 +1,5 @@
+from collections import Iterator
+
 from django.shortcuts import render
 
 # Create your views here.
@@ -9,8 +11,7 @@ import json
 
 import salt.config
 import salt.netapi
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
+
 
 logfile = '/var/log/salt/rest_cherrypy'
 loglevel = 'debug'
@@ -21,43 +22,76 @@ logger = logging.getLogger(__name__)
 
 from django.http import HttpResponse
 from django.views import View
-
-class MyView(View):
-    def get(self, request, *args, **kwargs):
-        request.session["foo"] = "hello"
-        request.session["bar"] = "world"
-        var = request.session["foo"]
-        return HttpResponse(var)
-
-    def post(self, request, *args, **kwargs):
-        return HttpResponse(content="hello world", status=200)
+import api.tools
+import management.settings as settings
 
 
-    __opts__ = salt.config.client_config(
-        os.environ.get("SALT_MASTER_CONFIG", "/etc/salt/master")
-    )
+__opt__ = salt.config.client_config(os.environ.get("SALT_MASTER_CONFIG", "/etc/salt/master"))
 
-def salt_token_tool(request):
+def salt_api_acl_tool(username, request):
     """
-    If the custom authentication header is supplied, put it in the cookie dict
-    so the rest of the session-based auth works as intended
-    """
-    x_auth = request.headers.get("X-Auth-Token", None)
+    .. versionadded:: 2016.3.0
 
-    # X-Auth-Token header trumps session cookie
-    if x_auth:
-        request.cookie["session_id"] = x_auth
+    Verifies user requests against the API whitelist. (User/IP pair)
+    in order to provide whitelisting for the API similar to the
+    master, but over the API.
 
-def salt_auth_tool(request):
-    """
-    Redirect all unauthenticated requests to the login page
-    """
-    # Redirect to the login page if the session hasn't been authed
-    if "token" not in cherrypy.session:  # pylint: disable=W8601
-        raise cherrypy.HTTPError(401)
+    .. code-block:: yaml
 
-    # Session is authenticated; inform caches
-    cherrypy.response.headers["Cache-Control"] = "private"
+        rest_cherrypy:
+            api_acl:
+                users:
+                    '*':
+                        - 1.1.1.1
+                        - 1.1.1.2
+                    foo:
+                        - 8.8.4.4
+                    bar:
+                        - '*'
+
+    :param username: Username to check against the API.
+    :type username: str
+    :param request: Cherrypy request to check against the API.
+    :type request: cherrypy.request
+    """
+    failure_str = "[api_acl] Authentication failed for " "user {0} from IP {1}"
+    success_str = "[api_acl] Authentication successful for user {0} from IP {1}"
+    pass_str = "[api_acl] Authentication not checked for " "user {0} from IP {1}"
+
+    acl = None
+    # Salt Configuration
+    salt_config = settings.SALT_OPT
+    if salt_config:
+        # Cherrypy Config.
+        cherrypy_conf = salt_config.get("rest_cherrypy", None)
+        if cherrypy_conf:
+            # ACL Config.
+            acl = cherrypy_conf.get("api_acl", None)
+
+    ip = request.META['REMOTE_ADDR']
+    if acl:
+        users = acl.get("users", {})
+        if users:
+            if username in users:
+                if ip in users[username] or "*" in users[username]:
+                    logger.info(success_str.format(username, ip))
+                    return True
+                else:
+                    logger.info(failure_str.format(username, ip))
+                    return False
+            elif username not in users and "*" in users:
+                if ip in users["*"] or "*" in users["*"]:
+                    logger.info(success_str.format(username, ip))
+                    return True
+                else:
+                    logger.info(failure_str.format(username, ip))
+                    return False
+            else:
+                logger.info(failure_str.format(username, ip))
+                return False
+    else:
+        logger.info(pass_str.format(username, ip))
+        return True
 
 
 class LowDataAdapter(View):
@@ -66,11 +100,9 @@ class LowDataAdapter(View):
 
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.opts = salt.config.client_config(
-            os.environ.get("SALT_MASTER_CONFIG", "/etc/salt/master")
-        )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.opts = settings.SALT_OPT
         self.api = salt.netapi.NetapiClient(self.opts)
 
     def exec_lowstate(self, request, client=None, token=None):
@@ -79,12 +111,12 @@ class LowDataAdapter(View):
         chunks through Salt. The low-data chunks will be updated to include the
         authorization token for the current session.
         """
-
+        token = request.session.get("token")
         # 兼容expr_form参数
         # if 'expr_form' in cherrypy.request.lowstate[0]:
         #     cherrypy.request.lowstate[0]['tgt_type'] = cherrypy.request.lowstate[0].pop('expr_form')
 
-        lowstate = request.body
+        lowstate = json.loads(request.body)
 
         # Release the session lock before executing any potentially
         # long-running Salt commands. This allows different threads to execute
@@ -94,7 +126,7 @@ class LowDataAdapter(View):
 
         # if the lowstate loaded isn't a list, lets notify the client
         if not isinstance(lowstate, list):
-            return HttpResponse("Lowstates must be a list", status=400)
+            lowstate = [lowstate]
 
         # Make any requested additions or modifications to each lowstate, then
         # execute each one and yield the result.
@@ -132,6 +164,7 @@ class LowDataAdapter(View):
             else:
                 yield ret
 
+    @api.tools.salt_token_tool
     def get(self, request):
         """
         An explanation of the API with links of where to go next
@@ -163,13 +196,19 @@ class LowDataAdapter(View):
             HTTP/1.1 200 OK
             Content-Type: application/json
         """
+        request.session["foo"] = request.session.session_key[-5:]
         ret = {
             "return": "Welcome",
             "clients": salt.netapi.CLIENTS,
+            "hello": "world",
+            "session": request.session.session_key,
+            "foo": request.session["foo"]
+
         }
-        request[cookie["session_id"] = 123
         return HttpResponse(json.dumps(ret), content_type="application/json")
 
+    @api.tools.salt_token_tool
+    #@api.tools.salt_auth_tool
     def post(self, request, **kwargs):
         """
         Send one or more Salt commands in the request body
@@ -230,3 +269,195 @@ class LowDataAdapter(View):
         ret = {"return": list(self.exec_lowstate(request=request))}
         ret = {}
         return HttpResponse(json.dumps(ret), content_type="application/json")
+
+
+
+
+class Login(LowDataAdapter):
+    """
+    Log in to receive a session token
+
+    :ref:`Authentication information <rest_cherrypy-auth>`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.auth = salt.auth.Resolver(self.opts)
+
+    def get(self, request):
+        """
+        Present the login interface
+
+        .. http:get:: /login
+
+            An explanation of how to log in.
+
+            :status 200: |200|
+            :status 401: |401|
+            :status 406: |406|
+
+        **Example request:**
+
+        .. code-block:: bash
+
+            curl -i localhost:8000/login
+
+        .. code-block:: text
+
+            GET /login HTTP/1.1
+            Host: localhost:8000
+            Accept: text/html
+
+        **Example response:**
+
+        .. code-block:: text
+
+            HTTP/1.1 200 OK
+            Content-Type: text/html
+        """
+        response = HttpResponse()
+        response.headers["WWW-Authenticate"] = "Session"
+        response.content = json.dumps({
+            "status": response.status_code,
+            "return": "Please log in",
+        })
+        return response
+
+    def post(self, request, **kwargs):
+        """
+        :ref:`Authenticate  <rest_cherrypy-auth>` against Salt's eauth system
+
+        .. http:post:: /login
+
+            :reqheader X-Auth-Token: |req_token|
+            :reqheader Accept: |req_accept|
+            :reqheader Content-Type: |req_ct|
+
+            :form eauth: the eauth backend configured for the user
+            :form username: username
+            :form password: password
+
+            :status 200: |200|
+            :status 401: |401|
+            :status 406: |406|
+
+        **Example request:**
+
+        .. code-block:: bash
+
+            curl -si localhost:8000/login \\
+                -c ~/cookies.txt \\
+                -H "Accept: application/json" \\
+                -H "Content-type: application/json" \\
+                -d '{
+                    "username": "saltuser",
+                    "password": "saltuser",
+                    "eauth": "auto"
+                }'
+
+        .. code-block:: text
+
+            POST / HTTP/1.1
+            Host: localhost:8000
+            Content-Length: 42
+            Content-Type: application/json
+            Accept: application/json
+
+            {"username": "saltuser", "password": "saltuser", "eauth": "auto"}
+
+
+        **Example response:**
+
+        .. code-block:: text
+
+            HTTP/1.1 200 OK
+            Content-Type: application/json
+            Content-Length: 206
+            X-Auth-Token: 6d1b722e
+            Set-Cookie: session_id=6d1b722e; expires=Sat, 17 Nov 2012 03:23:52 GMT; Path=/
+
+            {"return": {
+                "token": "6d1b722e",
+                "start": 1363805943.776223,
+                "expire": 1363849143.776224,
+                "user": "saltuser",
+                "eauth": "pam",
+                "perms": [
+                    "grains.*",
+                    "status.*",
+                    "sys.*",
+                    "test.*"
+                ]
+            }}
+        """
+        if not self.api._is_master_running():
+            raise salt.exceptions.SaltDaemonNotRunning("Salt Master is not available.")
+
+        # the urlencoded_processor will wrap this in a list
+        if isinstance(json.loads(request.body), list):
+            creds = json.loads(request.body)[0]
+        else:
+            creds = json.loads(request.body)
+
+        username = creds.get("username", None)
+        # Validate against the whitelist.
+        if not salt_api_acl_tool(username, request):
+            return HttpResponse(status=401)
+
+        # Mint token.
+        token = self.auth.mk_token(creds)
+        if "token" not in token:
+            return HttpResponse(
+                "Could not authenticate using provided credentials", status=401
+            )
+
+        response = HttpResponse()
+        response.headers["X-Auth-Token"] = request.session.session_key
+        request.session["token"] = token["token"]
+        request.session["timeout"] = (token["expire"] - token["start"]) / 60
+
+        # Grab eauth config for the current backend for the current user
+        try:
+            eauth = self.opts.get("external_auth", {}).get(token["eauth"], {})
+
+            if token["eauth"] == "django" and "^model" in eauth:
+                perms = token["auth_list"]
+            else:
+                # Get sum of '*' perms, user-specific perms, and group-specific perms
+                perms = eauth.get(token["name"], [])
+                perms.extend(eauth.get("*", []))
+
+                if "groups" in token and token["groups"]:
+                    user_groups = set(token["groups"])
+                    eauth_groups = {
+                        i.rstrip("%") for i in eauth.keys() if i.endswith("%")
+                    }
+
+                    for group in user_groups & eauth_groups:
+                        perms.extend(eauth["{}%".format(group)])
+
+            if not perms:
+                logger.debug("Eauth permission list not found.")
+        except Exception:  # pylint: disable=broad-except
+            logger.debug(
+                "Configuration for external_auth malformed for "
+                "eauth '{}', and user '{}'.".format(
+                    token.get("eauth"), token.get("name")
+                ),
+                exc_info=True,
+            )
+            perms = None
+
+        return {
+            "return": [
+                {
+                    "token": request.session.session_key,
+                    "expire": token["expire"],
+                    "start": token["start"],
+                    "user": token["name"],
+                    "eauth": token["eauth"],
+                    "perms": perms or {},
+                }
+            ]
+        }

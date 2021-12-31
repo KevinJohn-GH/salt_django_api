@@ -17,11 +17,10 @@ from django.contrib import admin
 from django.urls import path, re_path
 
 import api.views
-from api.views import MyView
-from api.views import LowDataAdapter
+from api.views import LowDataAdapter, Login
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('myview/', MyView.as_view()),
-    re_path('^$', LowDataAdapter.as_view())
+    re_path('^$', LowDataAdapter.as_view()),
+    path('login/', Login.as_view())
 ]
