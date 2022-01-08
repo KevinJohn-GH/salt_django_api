@@ -11,7 +11,7 @@ import json
 
 import salt.config
 import salt.netapi
-
+import auth, tokens
 
 logfile = '/var/log/salt/rest_cherrypy'
 loglevel = 'debug'
@@ -24,6 +24,7 @@ from django.http import HttpResponse
 from django.views import View
 import api.tools
 import management.settings as settings
+
 
 
 __opt__ = salt.config.client_config(os.environ.get("SALT_MASTER_CONFIG", "/etc/salt/master"))
@@ -271,8 +272,6 @@ class LowDataAdapter(View):
         return HttpResponse(json.dumps(ret), content_type="application/json")
 
 
-
-
 class Login(LowDataAdapter):
     """
     Log in to receive a session token
@@ -283,7 +282,7 @@ class Login(LowDataAdapter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.auth = salt.auth.Resolver(self.opts)
+        self.auth = auth.LoadAuth(self.opts)
 
     def get(self, request):
         """
