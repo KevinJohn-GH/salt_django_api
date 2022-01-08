@@ -13,7 +13,7 @@ so that any external authentication system can be used inside of Salt
 # 6. Interface to verify tokens
 
 import importlib
-
+import tokens.redis
 import getpass
 import logging
 import random
@@ -64,6 +64,7 @@ class LoadAuth:
         self.auth = salt.loader.auth(opts)
         self.tokens = salt.loader.eauth_tokens(opts)
         self.token = importlib.import_module("tokens." + self.opts["eauth_tokens"])
+        # self.token = tokens.redis
         self.ckminions = ckminions or salt.utils.minions.CkMinions(opts)
 
     def load_name(self, load):
@@ -219,8 +220,8 @@ class LoadAuth:
         """
         Run time_auth and create a token. Return False or the token
         """
-        if not self.authenticate_eauth(load):
-            return {}
+        # if not self.authenticate_eauth(load):
+        #     return {}
 
         if self._allow_custom_expire(load):
             token_expire = load.pop("token_expire", self.opts["token_expire"])

@@ -11,7 +11,8 @@ import json
 
 import salt.config
 import salt.netapi
-import auth, tokens
+import auth
+import tokens
 
 logfile = '/var/log/salt/rest_cherrypy'
 loglevel = 'debug'
@@ -413,6 +414,7 @@ class Login(LowDataAdapter):
 
         response = HttpResponse()
         response.headers["X-Auth-Token"] = request.session.session_key
+        response.headers["Content-Type"] = "application/json"
         request.session["token"] = token["token"]
         request.session["timeout"] = (token["expire"] - token["start"]) / 60
 
@@ -448,7 +450,7 @@ class Login(LowDataAdapter):
             )
             perms = None
 
-        return {
+        response.content = json.dumps( {
             "return": [
                 {
                     "token": request.session.session_key,
@@ -459,4 +461,5 @@ class Login(LowDataAdapter):
                     "perms": perms or {},
                 }
             ]
-        }
+        })
+        return response
