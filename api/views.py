@@ -210,7 +210,7 @@ class LowDataAdapter(View):
         return HttpResponse(json.dumps(ret), content_type="application/json")
 
     @api.tools.salt_token_tool
-    #@api.tools.salt_auth_tool
+    @api.tools.salt_auth_tool
     def post(self, request, **kwargs):
         """
         Send one or more Salt commands in the request body
@@ -269,8 +269,8 @@ class LowDataAdapter(View):
         """
 
         ret = {"return": list(self.exec_lowstate(request=request))}
-        ret = {}
-        return HttpResponse(json.dumps(ret), content_type="application/json")
+        response = HttpResponse(content=json.dumps(ret), content_type=request.headers["Accept"])
+        return response
 
 
 class Login(LowDataAdapter):
@@ -414,6 +414,7 @@ class Login(LowDataAdapter):
 
         response = HttpResponse()
         response.headers["X-Auth-Token"] = request.session.session_key
+        # TODO: response type
         response.headers["Content-Type"] = "application/json"
         request.session["token"] = token["token"]
         request.session["timeout"] = (token["expire"] - token["start"]) / 60
