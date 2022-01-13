@@ -60,7 +60,7 @@ class RedisToken(object):
 
     def __init__(self, opts):
         # TODO: token redis config
-        opts["token_redis_instances"] = [{"host": "localhost", "port": 6379, "db": 1}]
+        opts["token_redis_instances"] = [{"host": "172.19.0.3", "port": 6379, "db": 1}]
         self.redis_instances = opts.get('token_redis_instances')
         self.expire_minutes = opts.get('token_redis_expire_minutes')
         self.socket_timeout = opts.get('token_redis_socket_timeout', 10)
