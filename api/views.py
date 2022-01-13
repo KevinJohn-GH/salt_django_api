@@ -12,7 +12,7 @@ import json
 import salt.config
 import salt.netapi
 import auth
-import tokens
+# import tokens
 
 logfile = '/var/log/salt/rest_cherrypy'
 loglevel = 'debug'
@@ -283,7 +283,9 @@ class Login(LowDataAdapter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.auth = auth.LoadAuth(self.opts)
+        # self.auth = auth.LoadAuth(self.opts)
+        self.auth = salt.auth.Resolver(self.opts)
+
 
     def get(self, request):
         """
