@@ -198,7 +198,7 @@ class LowDataAdapter(View):
             HTTP/1.1 200 OK
             Content-Type: application/json
         """
-        request.session["foo"] = request.session.session_key[-5:]
+        request.session["foo"] = request.session.session_key
         ret = {
             "return": "Welcome",
             "clients": salt.netapi.CLIENTS,
