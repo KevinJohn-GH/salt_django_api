@@ -1,18 +1,22 @@
 from collections import Iterator
 
-from django.shortcuts import render
+
+from django.http import Http404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 
 # Create your views here.
 
-
+# common
 import os
 import logging
 import json
 
+# salt
 import salt.config
 import salt.netapi
-import auth
-# import tokens
+
 
 logfile = '/var/log/salt/rest_cherrypy'
 loglevel = 'debug'
@@ -26,9 +30,7 @@ from django.views import View
 import api.tools
 import management.settings as settings
 
-
-
-__opt__ = salt.config.client_config(os.environ.get("SALT_MASTER_CONFIG", "/etc/salt/master"))
+__opt__ = settings.SALT_OPT
 
 def salt_api_acl_tool(username, request):
     """
@@ -96,7 +98,7 @@ def salt_api_acl_tool(username, request):
         return True
 
 
-class LowDataAdapter(View):
+class LowDataAdapter(APIView):
     """
     The primary entry point to Salt's REST API
 
@@ -207,7 +209,8 @@ class LowDataAdapter(View):
             "foo": request.session["foo"]
 
         }
-        return HttpResponse(json.dumps(ret), content_type="application/json")
+        return Response(json.dumps(ret))
+        #return HttpResponse(json.dumps(ret), content_type="application/json")
 
     @api.tools.salt_token_tool
     @api.tools.salt_auth_tool

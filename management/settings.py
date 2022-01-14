@@ -10,6 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 import os
+import sys
+
 import salt.config
 from pathlib import Path
 
@@ -38,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
@@ -139,3 +142,19 @@ SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
 
 SALT_OPT = salt.config.client_config(os.environ.get("SALT_MASTER_CONFIG", "/etc/salt/master"))
+
+
+# REST_FRAMEWORK = {
+#     # Use Django's standard `django.contrib.auth` permissions,
+#     # or allow read-only access for unauthenticated users.
+#     'DEFAULT_PERMISSION_CLASSES': [
+#         'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
+#     ]
+# }
+
+
+
+import salt.netapi
+if not salt.netapi.NetapiClient(SALT_OPT)._is_master_running():
+    print("Salt Master is not available.")
+    sys.exit()
