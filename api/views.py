@@ -11,8 +11,8 @@ import json
 
 import salt.config
 import salt.netapi
-import auth
-# import tokens
+
+
 
 logfile = '/var/log/salt/rest_cherrypy'
 loglevel = 'debug'
