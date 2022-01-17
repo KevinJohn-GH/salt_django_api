@@ -283,8 +283,8 @@ class Login(LowDataAdapter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # self.auth = auth.LoadAuth(self.opts)
-        self.auth = salt.auth.Resolver(self.opts)
+        self.auth = auth.LoadAuth(self.opts)
+        # self.auth = salt.auth.Resolver(self.opts)
 
 
     def get(self, request):

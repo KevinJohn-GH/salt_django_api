@@ -63,7 +63,7 @@ class LoadAuth:
         self.serial = salt.payload.Serial(opts)
         self.auth = salt.loader.auth(opts)
         self.tokens = salt.loader.eauth_tokens(opts)
-        # self.token = tokens.redis
+        self.token = tokens.redis
         self.ckminions = ckminions or salt.utils.minions.CkMinions(opts)
 
     def load_name(self, load):
@@ -243,13 +243,13 @@ class LoadAuth:
         if groups:
             tdata["groups"] = groups
 
-        # return self.token.mk_token(
-        #     self.opts, tdata
-        # )
-
-        return self.tokens["{}.mk_token".format(self.opts["eauth_tokens"])](
+        return self.token.mk_token(
             self.opts, tdata
         )
+
+        # return self.tokens["{}.mk_token".format(self.opts["eauth_tokens"])](
+        #     self.opts, tdata
+        # )
 
     def get_tok(self, tok):
         """
