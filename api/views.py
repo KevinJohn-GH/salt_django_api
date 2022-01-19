@@ -120,7 +120,7 @@ class LowDataAdapter(APIView):
         # if 'expr_form' in cherrypy.request.lowstate[0]:
         #     cherrypy.request.lowstate[0]['tgt_type'] = cherrypy.request.lowstate[0].pop('expr_form')
 
-        lowstate = json.loads(request.body)
+        lowstate = request.data
 
         # Release the session lock before executing any potentially
         # long-running Salt commands. This allows different threads to execute
@@ -400,10 +400,10 @@ class Login(LowDataAdapter):
             raise salt.exceptions.SaltDaemonNotRunning("Salt Master is not available.")
 
         # the urlencoded_processor will wrap this in a list
-        if isinstance(json.loads(request.body), list):
-            creds = json.loads(request.body)[0]
+        if isinstance(request.data, list):
+            creds = request.data[0]
         else:
-            creds = json.loads(request.body)
+            creds = request.data
 
         username = creds.get("username", None)
         # Validate against the whitelist.
