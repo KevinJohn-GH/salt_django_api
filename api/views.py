@@ -143,14 +143,14 @@ class LowDataAdapter(APIView):
                 try:
                     int(chunk["token"], 16)
                 except (TypeError, ValueError):
-                    return HttpResponse("Invalid token", status=401)
+                    return Response("Invalid token", status=401)
 
             if "token" in chunk:
                 # Make sure that auth token is hex
                 try:
                     int(chunk["token"], 16)
                 except (TypeError, ValueError):
-                    return HttpResponse("Invalid token", status=401)
+                    return Response("Invalid token", status=401)
 
             if client:
                 chunk["client"] = client
@@ -408,19 +408,18 @@ class Login(LowDataAdapter):
         username = creds.get("username", None)
         # Validate against the whitelist.
         if not salt_api_acl_tool(username, request):
-            return HttpResponse(status=401)
+            return Response(status=401)
 
         # Mint token.
         token = self.auth.mk_token(creds)
         if "token" not in token:
-            return HttpResponse(
+            return Response(
                 "Could not authenticate using provided credentials", status=401
             )
 
         response = Response()
         response.headers["X-Auth-Token"] = request.session.session_key
         # TODO: response type
-        response.headers["Content-Type"] = "application/json"
         request.session["token"] = token["token"]
         request.session["timeout"] = (token["expire"] - token["start"]) / 60
 
