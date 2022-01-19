@@ -209,8 +209,8 @@ class LowDataAdapter(APIView):
             "foo": request.session["foo"]
 
         }
-        return Response(json.dumps(ret))
-        #return HttpResponse(json.dumps(ret), content_type="application/json")
+        return Response(ret)
+
 
     @api.tools.salt_token_tool
     @api.tools.salt_auth_tool
@@ -272,7 +272,7 @@ class LowDataAdapter(APIView):
         """
 
         ret = {"return": list(self.exec_lowstate(request=request))}
-        response = HttpResponse(content=json.dumps(ret), content_type=request.headers["Accept"])
+        response = Response(ret, content_type=request.headers["Accept"])
         return response
 
 
@@ -321,12 +321,12 @@ class Login(LowDataAdapter):
             HTTP/1.1 200 OK
             Content-Type: text/html
         """
-        response = HttpResponse()
+        response = Response()
         response.headers["WWW-Authenticate"] = "Session"
-        response.content = json.dumps({
+        response.data = {
             "status": response.status_code,
             "return": "Please log in",
-        })
+        }
         return response
 
     def post(self, request, **kwargs):
@@ -417,7 +417,7 @@ class Login(LowDataAdapter):
                 "Could not authenticate using provided credentials", status=401
             )
 
-        response = HttpResponse()
+        response = Response()
         response.headers["X-Auth-Token"] = request.session.session_key
         # TODO: response type
         response.headers["Content-Type"] = "application/json"
@@ -456,7 +456,7 @@ class Login(LowDataAdapter):
             )
             perms = None
 
-        response.content = json.dumps( {
+        response.data = {
             "return": [
                 {
                     "token": request.session.session_key,
@@ -467,5 +467,5 @@ class Login(LowDataAdapter):
                     "perms": perms or {},
                 }
             ]
-        })
+        }
         return response
