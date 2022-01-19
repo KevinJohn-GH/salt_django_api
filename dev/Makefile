@@ -8,3 +8,6 @@ salt_network:
 
 master_container:
 	docker run -d -p 8022:22 -p 8080:8080 -v volumes/master.d:/etc/salt/master.d --name=salt_django_api --net salt_django_api --ip 172.19.0.2 --hostname salt_django_api salt:django_api
+
+redis:
+	docker run -d --net salt_django_api --ip 172.19.0.3 --name redis_a redis
