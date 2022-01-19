@@ -152,7 +152,16 @@ SALT_OPT = salt.config.client_config(os.environ.get("SALT_MASTER_CONFIG", "/etc/
 #     ]
 # }
 
-
+REST_FRAMEWORK = {
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework_yaml.parsers.YAMLParser',
+        'rest_framework_xml.parsers.XMLParser',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework_yaml.renderers.YAMLRenderer',
+        'rest_framework_xml.renderers.XMLRenderer',
+    ],
+}
 
 import salt.netapi
 if not salt.netapi.NetapiClient(SALT_OPT)._is_master_running():
