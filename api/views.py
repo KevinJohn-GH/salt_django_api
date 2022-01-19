@@ -1,17 +1,21 @@
 from collections import Iterator
 
-from django.shortcuts import render
+
+from django.http import Http404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 
 # Create your views here.
 
-
+# common
 import os
 import logging
 import json
 
+# salt
 import salt.config
 import salt.netapi
-
 
 
 logfile = '/var/log/salt/rest_cherrypy'
@@ -26,9 +30,7 @@ from django.views import View
 import api.tools
 import management.settings as settings
 
-
-
-__opt__ = salt.config.client_config(os.environ.get("SALT_MASTER_CONFIG", "/etc/salt/master"))
+__opt__ = settings.SALT_OPT
 
 def salt_api_acl_tool(username, request):
     """
@@ -96,7 +98,7 @@ def salt_api_acl_tool(username, request):
         return True
 
 
-class LowDataAdapter(View):
+class LowDataAdapter(APIView):
     """
     The primary entry point to Salt's REST API
 
@@ -118,7 +120,7 @@ class LowDataAdapter(View):
         # if 'expr_form' in cherrypy.request.lowstate[0]:
         #     cherrypy.request.lowstate[0]['tgt_type'] = cherrypy.request.lowstate[0].pop('expr_form')
 
-        lowstate = json.loads(request.body)
+        lowstate = request.data
 
         # Release the session lock before executing any potentially
         # long-running Salt commands. This allows different threads to execute
@@ -141,14 +143,14 @@ class LowDataAdapter(View):
                 try:
                     int(chunk["token"], 16)
                 except (TypeError, ValueError):
-                    return HttpResponse("Invalid token", status=401)
+                    return Response("Invalid token", status=401)
 
             if "token" in chunk:
                 # Make sure that auth token is hex
                 try:
                     int(chunk["token"], 16)
                 except (TypeError, ValueError):
-                    return HttpResponse("Invalid token", status=401)
+                    return Response("Invalid token", status=401)
 
             if client:
                 chunk["client"] = client
@@ -207,7 +209,8 @@ class LowDataAdapter(View):
             "foo": request.session["foo"]
 
         }
-        return HttpResponse(json.dumps(ret), content_type="application/json")
+        return Response(ret)
+
 
     @api.tools.salt_token_tool
     @api.tools.salt_auth_tool
@@ -269,7 +272,7 @@ class LowDataAdapter(View):
         """
 
         ret = {"return": list(self.exec_lowstate(request=request))}
-        response = HttpResponse(content=json.dumps(ret), content_type=request.headers["Accept"])
+        response = Response(ret)
         return response
 
 
@@ -318,12 +321,12 @@ class Login(LowDataAdapter):
             HTTP/1.1 200 OK
             Content-Type: text/html
         """
-        response = HttpResponse()
+        response = Response()
         response.headers["WWW-Authenticate"] = "Session"
-        response.content = json.dumps({
+        response.data = {
             "status": response.status_code,
             "return": "Please log in",
-        })
+        }
         return response
 
     def post(self, request, **kwargs):
@@ -397,27 +400,26 @@ class Login(LowDataAdapter):
             raise salt.exceptions.SaltDaemonNotRunning("Salt Master is not available.")
 
         # the urlencoded_processor will wrap this in a list
-        if isinstance(json.loads(request.body), list):
-            creds = json.loads(request.body)[0]
+        if isinstance(request.data, list):
+            creds = request.data[0]
         else:
-            creds = json.loads(request.body)
+            creds = request.data
 
         username = creds.get("username", None)
         # Validate against the whitelist.
         if not salt_api_acl_tool(username, request):
-            return HttpResponse(status=401)
+            return Response(status=401)
 
         # Mint token.
         token = self.auth.mk_token(creds)
         if "token" not in token:
-            return HttpResponse(
+            return Response(
                 "Could not authenticate using provided credentials", status=401
             )
 
-        response = HttpResponse()
+        response = Response()
         response.headers["X-Auth-Token"] = request.session.session_key
         # TODO: response type
-        response.headers["Content-Type"] = "application/json"
         request.session["token"] = token["token"]
         request.session["timeout"] = (token["expire"] - token["start"]) / 60
 
@@ -453,7 +455,7 @@ class Login(LowDataAdapter):
             )
             perms = None
 
-        response.content = json.dumps( {
+        response.data = {
             "return": [
                 {
                     "token": request.session.session_key,
@@ -464,5 +466,5 @@ class Login(LowDataAdapter):
                     "perms": perms or {},
                 }
             ]
-        })
+        }
         return response
