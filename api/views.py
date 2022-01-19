@@ -272,7 +272,7 @@ class LowDataAdapter(APIView):
         """
 
         ret = {"return": list(self.exec_lowstate(request=request))}
-        response = Response(ret, content_type=request.headers["Accept"])
+        response = Response(ret)
         return response
 
 
