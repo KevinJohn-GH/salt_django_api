@@ -5,6 +5,7 @@ from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from .serializers import LoginSerializer
 
 # Create your views here.
 
@@ -396,6 +397,10 @@ class Login(LowDataAdapter):
                 ]
             }}
         """
+        serializer = LoginSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response("123", status=403)
+
         if not self.api._is_master_running():
             raise salt.exceptions.SaltDaemonNotRunning("Salt Master is not available.")
 
