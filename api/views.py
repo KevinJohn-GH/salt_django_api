@@ -144,14 +144,14 @@ class LowDataAdapter(APIView):
                 try:
                     int(chunk["token"], 16)
                 except (TypeError, ValueError):
-                    return Response("Invalid token", status=401)
+                    return Response("Invalid token", status=status.HTTP_401_UNAUTHORIZED)
 
             if "token" in chunk:
                 # Make sure that auth token is hex
                 try:
                     int(chunk["token"], 16)
                 except (TypeError, ValueError):
-                    return Response("Invalid token", status=401)
+                    return Response("Invalid token", status=status.HTTP_401_UNAUTHORIZED)
 
             if client:
                 chunk["client"] = client
@@ -399,7 +399,7 @@ class Login(LowDataAdapter):
         """
         serializer = LoginSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response("123", status=403)
+            return Response("123", status=status.HTTP_403_FORBIDDEN)
 
         if not self.api._is_master_running():
             raise salt.exceptions.SaltDaemonNotRunning("Salt Master is not available.")
@@ -413,13 +413,13 @@ class Login(LowDataAdapter):
         username = creds.get("username", None)
         # Validate against the whitelist.
         if not salt_api_acl_tool(username, request):
-            return Response(status=401)
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
 
         # Mint token.
         token = self.auth.mk_token(creds)
         if "token" not in token:
             return Response(
-                "Could not authenticate using provided credentials", status=401
+                "Could not authenticate using provided credentials", status=status.HTTP_401_UNAUTHORIZED
             )
 
         response = Response()
